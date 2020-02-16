@@ -1,7 +1,7 @@
 Wenjun Notes
 ========
 
-Added fan beam model (Wang et a. 2014) in `EVOLVE` module. See `evolve -h` for more details.
+Added fan beam model (Wang et al. 2014) in `EVOLVE` module. See `evolve -h` for more details.
 
 e.g. evolve -n 1214 -surveys PMSURV SWINMB1 SWINMB2 -b 12.25 0.65 -vmodel exp -beammodel none -alignmode random -bi 3 -wmod w14 -ldist w14 -fbl 2.75 1.25 -rdist lfl06 --nospiralarms -o test_fan_beam_model_population.model --txt
 
