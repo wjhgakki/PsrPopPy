@@ -1,4 +1,4 @@
-Wenjun Note
+Wenjun Notes
 ========
 
 Added fan beam model (Wang et a. 2014) in `EVOLVE` module. See `evolve -h` for more details.
