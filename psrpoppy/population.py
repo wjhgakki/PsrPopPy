@@ -131,6 +131,43 @@ class Population:
                 s = "".join([s, "\n"])
 
                 f.write(s)
+                
+    def write_txt(self, outf):
+        """Write population to an txt file"""
+
+        with open(outf, 'w') as f:
+            titlestr = "Period_ms Pdot DM B GX GY GZ W_ms W_deg alpha rho SI SNR S1400 L1400 age"
+            titlestr = " ".join([titlestr, "gl gb D r0 eta edot beta_deg\n"])
+            f.write(titlestr)
+            for psr in self.population:
+
+                s = "{0}".format(psr.period)
+                s = "\t".join([s, "{0}".format(psr.pdot)])
+                s = "\t".join([s, "{0}".format(psr.dm)])
+                s = "\t".join([s, "{0}".format(psr.bfield_init)])
+                s = "\t".join([s, "{0}".format(psr.galCoords[0])])
+                s = "\t".join([s, "{0}".format(psr.galCoords[1])])
+                s = "\t".join([s, "{0}".format(psr.galCoords[2])])
+                w_ms = psr.width_degree * psr.period / 360.0
+                s = "\t".join([s, "{0}".format(w_ms)])
+                s = "\t".join([s, "{0}".format(psr.width_degree)])
+                s = "\t".join([s, "{0}".format(psr.alpha)])
+                s = "\t".join([s, "{0}".format(psr.rho)])
+                s = "\t".join([s, "{0}".format(psr.spindex)])
+                s = "\t".join([s, "{0}".format(psr.snr)])
+                s = "\t".join([s, "{0}".format(psr.s_1400())])
+                s = "\t".join([s, "{0}".format(psr.lum_1400)])
+                s = "\t".join([s, "{0}".format(psr.age)])
+                s = "\t".join([s, "{0}".format(psr.gl)])
+                s = "\t".join([s, "{0}".format(psr.gb)])
+                s = "\t".join([s, "{0}".format(psr.dtrue)])
+                s = "\t".join([s, "{0}".format(psr.r0)])
+                s = "\t".join([s, "{0}".format(psr.efficiency())])
+                s = "\t".join([s, "{0}".format(psr.edot())])
+                s = "\t".join([s, "{0}".format(psr.beta)])  # beta used in fan beam model
+                s = "\t".join([s, "\n"])
+
+                f.write(s)
 
     def make_plotting_dicts(self):
         """
@@ -142,6 +179,7 @@ class Population:
                     'Period': 'Period (ms)',
                     'Pdot': 'Period Derivative',
                     'DM': r'DM (cm$^{-3}$ pc)',
+                    'B': 'B (G)',
                     'Gal X': 'X (kpc)',
                     'Gal Y': 'Y (kpc)',
                     'Gal Z': 'Z (kpc)',
@@ -151,19 +189,23 @@ class Population:
                     'SI': 'Spectral Index',
                     'S1400': 'S1400 (mJy)',
                     'L1400': r'L1400 (mJy kpc$^2$)',
+                    'age': 'age (yr)',
                     'gl': 'Galactic Longitude (degrees)',
                     'gb': 'Galactic Latitude (degrees)',
                     'D': 'Distance (kpc)',
                     'r0': 'GalacticRadius (kpc)',
                     'n': 'Array Index',
                     'eta': 'Efficiency',
-                    'edot': 'Edot'
+                    'edot': 'Edot',
+                    'beta': 'Beta(degree)',  # beta used in fan beam model
+                    '|beta|': '|Beta|(degree)',
                     }
 
         dataDict = {
             'Period': np.array([psr.period for psr in self.population]),
             'Pdot': np.array([psr.pdot for psr in self.population]),
             'DM': np.array([psr.dm for psr in self.population]),
+            'B': np.array([psr.bfield_init for psr in self.population]),
             'Gal X': np.array([psr.galCoords[0] for psr in self.population]),
             'Gal Y': np.array([psr.galCoords[1] for psr in self.population]),
             'Gal Z': np.array([psr.galCoords[2] for psr in self.population]),
@@ -173,13 +215,16 @@ class Population:
             'SI': np.array([psr.spindex for psr in self.population]),
             'S1400': np.array([psr.s_1400() for psr in self.population]),
             'L1400': np.array([psr.lum_1400 for psr in self.population]),
+            'age': np.array([psr.age for psr in self.population]),
             'gl': np.array([psr.gl for psr in self.population]),
             'gb': np.array([psr.gb for psr in self.population]),
             'D': np.array([psr.dtrue for psr in self.population]),
             'r0': np.array([psr.r0 for psr in self.population]),
             'n': np.array([x for x in range(len(self.population))]),
             'eta': np.array([psr.efficiency() for psr in self.population]),
-            'edot': np.array([psr.edot() for psr in self.population])
+            'edot': np.array([psr.edot() for psr in self.population]),
+            'beta': np.array([psr.beta for psr in self.population]),  # beta used in fan beam model
+            '|beta|': np.array([psr.beta_fabs for psr in self.population])
                     }
 
         return labelDict, dataDict, self.size()

@@ -50,9 +50,12 @@ def generate(ngen,
              bFieldPars=[12.65, 0.55],
              birthVPars=[0.0, 180.],
              siDistPars=[-1.6, 0.35],
+             radialDistType='yk04',
+             phiDistPars=[20., 80.],
              alignModel='orthogonal',
              lumDistType='fk06',
              lumDistPars=[-1.5, 0.5],
+             lumFbDistPars=[2.75, 1.25],
              alignTime=None,
              spinModel='fk06',
              beamModel='tm98',
@@ -88,13 +91,23 @@ def generate(ngen,
             pop.lumPar3 = lumDistPars[2]
         else:
             pop.lumPar3 = 0.18
-
+            
+    elif lumDistType == 'w14':
+        pop.lumPar1, pop.lumPar2 = lumFbDistPars[0], lumFbDistPars[1]
+        if len(lumFbDistPars) == 3:
+            pop.lumPar3 = lumFbDistPars[2]
+        else:
+            pop.lumPar3 = 0.75
+    
     else:
         pop.lumPar1, pop.lumPar2 = lumDistPars
 
     pop.simean, pop.sisigma = siDistPars
     pop.birthvmean, pop.birthvsigma = birthVPars
+    pop.phi_min, pop.phi_max = phiDistPars
 
+    pop.radialDistType = radialDistType    
+    
     pop.alignModel = alignModel
     pop.alignTime = alignTime
     pop.spinModel = spinModel
@@ -131,8 +144,29 @@ def generate(ngen,
                                                     pop.zscale)
         if widthModel is None:
             print "\t\tWidth {0}% ".format(duty)
+        elif widthModel == 'w14':
+            print "\t\tUsing fan beam width model, Wang et al. (2014)"
+        elif widthModel == 's09':
+            print "\t\tUsing conal beam width model, smits et al. (2009)"
         else:
             print "\t\tUsing Karastergiou & Johnston beam width model"
+        
+        if radialDistType == 'lfl06':
+            print "\t\tUsing radial distribution (lfl06): {0}".format(pop.radialDistType)
+        elif radialDistType == 'yk04':
+            print "\t\tUsing radial distribution (yk04): {0}".format(pop.radialDistType)
+        else:
+            pass
+
+        if lumDistType == 'w14' :
+            print "\t\tUsing fan beam luminosity model from Wang et al. (2014)"
+        elif lumDistType == 'fk06' :
+            print "\t\tUsing fk06 luminosity model"
+        else:
+            pass
+
+        print "\t\tUsing electron distn model {0}".format(
+            pop.electronModel)
 
         # set up progress bar for fun :)
         prog = ProgressBar(min_value=0,
@@ -172,6 +206,9 @@ def generate(ngen,
 
         # aligment angle
         alignpulsar(pulsar, pop)
+        
+        # to adjust for the function conalbeam_width(psr) in beaming.py:
+        pulsar.alpha = pulsar.chi
 
         # braking index
         if pop.braking_index == 0:
@@ -231,10 +268,24 @@ def generate(ngen,
                     no_width = 0
                     continue
             """
+            
+        elif widthModel == 'w14':
+            # fan beam model -- Wang et al.(2014)
+            fb_width, pulsar.beta = beammodels.fanbeam_width(pulsar,pop)
+            # convert degree to ms
+            width = fb_width*pulsar.period / 360.
+            pulsar.beta_fabs = math.fabs(pulsar.beta)
 
+        elif widthModel == 's09':
+            # conal beam model -- Smits et al.(2009)
+            cb_width, pulsar.beta = beammodels.conalbeam_width(pulsar)
+            # convert degree to ms
+            width = cb_width * pulsar.period / 360.
+        
         else:
             print "Undefined width model!"
             sys.exit()
+            
         # print width
         # print pulsar.period, width, pulsar.pdot
         if width == 0.0:
@@ -272,6 +323,12 @@ def generate(ngen,
                 pulsar.lum_1400 = dists.powerlaw(pop.lummin,
                                                  pop.lummax,
                                                  pop.lumpow)
+            elif lumDistType == 'w14':
+                luminosity_w14(pulsar,
+                                kvalue=pop.lumPar1,
+                                qvalue=pop.lumPar2,
+                                Lcorrsigma=pop.lumPar3)
+                                 
             else:
                 # something's wrong!
                 raise EvolveException('Invalid luminosity distn selected')
@@ -415,12 +472,19 @@ def galacticDistribute(pulsar, pop):
     """ select a galactic position - spiral arms on or off?"""
     if not pop.nospiralarms:
         # using spiral arms
-        r0 = go.ykr()
+        if pop.radialDistType == 'lfl06':
+            r0 = go.lfl06()
+        elif pop.radialDistType == 'yk04':
+            r0 = go.ykr()
         x, y = go.spiralize(r0)
     else:
-        # distribute randomly in x-y plane
-        x = -20. + random.random()*40.
-        y = -20. + random.random()*40.
+        if pop.radialDistType == 'lfl06':
+            r0 = go.lfl06()
+            x, y = go.calcXY(r0)
+        else:
+            # distribute randomly in x-y plane
+            x = -20. + random.random()*40.
+            y = -20. + random.random()*40.
 
     # calculate z and r0
     z = dists.draw_double_sided_exp(pop.zscale)
@@ -512,6 +576,39 @@ def luminosity_fk06(pulsar, alpha=-1.5, beta=0.5, gamma=0.18):
     # set L
     pulsar.lum_1400 = 10.0**logL
 
+def luminosity_w14(pulsar, kvalue=2.75, qvalue=1.25, Lcorrsigma=0.75):
+    """ Converted by Eq.(34) from  Wang et al. (2014) """
+
+    if pulsar.beta == None:
+        raise EvolveException('Invalid width model to decide beta')
+    
+    # decide impact angle (unit:degree)
+    beta = pulsar.beta
+
+    # pulsar period (unit:s)
+    period = pulsar.period / 1000.
+
+    # calculate the size of polar cap: rho_pc_degree (unit:degree)
+    rho_pc = beammodels.cal_rho_pc(pulsar)
+    rho_pc_deg = math.degrees(rho_pc)
+
+    if math.fabs(beta) > 2. * rho_pc_deg:
+        # decide rho_peak (unit:degree)
+        rho_peak = math.fabs(beta)
+    else:
+        # Note: the region where |beta| < 2.*rho_pc like a symmetrical core
+        # then I_1400 within rho_peak = 2*rho_pc is assumed as a constant.
+        rho_peak = 2 * rho_pc_deg
+
+    # calculate L_1400 (unit: mJy kpc^2)
+    inta = pulsar.width_degree / 360.
+    Lcorr = random.gauss(0, Lcorrsigma)
+    log_lum_1400 = kvalue + math.log10(inta) + (qvalue-4)*math.log10(period) + \
+        math.log10(pulsar.pdot / 1.e-15) + (2*qvalue-6)*math.log10(rho_peak) + \
+        Lcorr
+    
+    # set L    
+    pulsar.lum_1400 = 10 ** (log_lum_1400)
 
 def spindown_fk06(pulsar):
     """
@@ -677,12 +774,17 @@ if __name__ == '__main__':
     # luminosity distribution parameters
     parser.add_argument('-ldist', nargs=1, required=False, default=['fk06'],
                         help='distribution to use for luminosities',
-                        choices=['fk06', 'lnorm', 'pow'])
+                        choices=['fk06', 'lnorm', 'pow', 'w14'])
 
     parser.add_argument('-l', nargs='+', required=False, type=float,
                         default=[-1.5, 0.5],
                         help='luminosity distribution parameters \
                              (def = [-1.5, 0.5], Faucher-Giguere&Kaspi, 2006)')
+                             
+    parser.add_argument('-fbl', nargs='+', required=False, type=float,
+                        default=[2.75, 1.25],
+                        help='luminosity distribution parameters \
+                             (def = [2.75, 1.25], Wang et al. (2014))')
 
     # B field distribution
     parser.add_argument('-b', nargs=2, type=float,
@@ -704,10 +806,19 @@ if __name__ == '__main__':
 
     # spectral index distribution
     parser.add_argument('-si', nargs=2, type=float,
-                        required=False, default=[-1.4, 0.96],
+                        # required=False, default=[-1.4, 0.96],
+                        # help='mean and std dev of spectral index distribution \
+                        #        (def = -1.4, 0.96)')
+                        required=False, default=[-1.6, 0.35],
                         help='mean and std dev of spectral index distribution \
-                                 (def = -1.4, 0.96)')
+                                (def = -1.6, 0.35)')
 
+    # radial distribution type
+    parser.add_argument('-rdist', type=str, nargs=1, required=False,
+                        default=['yk04'],
+                        help='type of distrbution to use for Galactic radius (def = yk04)',
+                        choices=['lfl06', 'yk04'])
+                        
     # spindown model
     parser.add_argument('-spinmodel', type=str, required=False,
                         nargs=1, default=['fk06'],
@@ -737,8 +848,14 @@ if __name__ == '__main__':
 
     # pulse width model
     parser.add_argument('-wmod', type=str, required=False, default=None,
-                        choices=[None, 'kj07'],
-                        help='pulse width model to use (def=using -w opt')
+                        choices=[None, 'kj07', 'w14', 's09'],
+                        help='pulse width model to use (def=using -w opt')            
+
+    # decide half azimuth width of flux tube for fan beam width model
+    parser.add_argument('-phi', nargs=2, type=float,
+                        required=False, default=[20, 80],
+                        help='flat distribution of phi for fan beam width \
+                                         (def = 20, 80)')    
 
     # scattering index
     parser.add_argument('-sc', type=float, required=False, default=-3.86,
@@ -774,6 +891,9 @@ if __name__ == '__main__':
     parser.add_argument('--nostdout', nargs='?', const=True, default=False,
                         help='switch off std output')
 
+    parser.add_argument('--txt', nargs='?', const=True, default=False,
+                        help='output txt population file (def=False)')
+        
     # Flag for NOT using deathline
     parser.add_argument('--nodeathline', nargs='?', const=True, default=False,
                         help='turn OFF the deathline ')
@@ -798,6 +918,8 @@ if __name__ == '__main__':
                    age_max=args.tmax,
                    lumDistType=args.ldist[0],
                    lumDistPars=args.l,
+                   lumFbDistPars=args.fbl,
+                   radialDistType=args.rdist[0],
                    pDistPars=args.p,
                    bFieldPars=args.b,
                    birthVModel=args.vmodel[0],
@@ -811,6 +933,7 @@ if __name__ == '__main__':
                    nostdout=args.nostdout,
                    duty=args.w,
                    widthModel=args.wmod,
+                   phiDistPars=args.phi,
                    scindex=args.sc,
                    braking_index=args.bi,
                    electronModel=args.dm[0],
@@ -820,3 +943,6 @@ if __name__ == '__main__':
                    keepdead=args.keepdead)
 
     pop.write(outf=args.o)
+    
+    if args.txt:
+        pop.write_txt(outf=args.o+'.txt')

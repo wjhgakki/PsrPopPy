@@ -365,3 +365,131 @@ def calcwidth(prof):
     # so then compute width of profile
     width = float(high_x) - float(low_x)
     return width / len(prof)
+
+def fanbeam_width(pulsar,pop):
+    """
+    calculate the fan beam width (unit: degree)
+    by Eq.(26) from Wang et al. (2014). 
+    """
+
+    # decide alpha, beta, zeta (unit:deg)
+    alpha = pulsar.chi
+    zeta = zetapi_mc()
+    beta = zeta - alpha
+
+    # make sure the beta should < 90
+    if beta > 90:
+        beta = beta - 180.
+
+    # convert degree to radians
+    alpha_rad = math.radians(alpha)
+    beta_rad = math.radians(beta)
+    zeta_rad = math.radians(zeta)
+
+    # calculate the size of polar cap: rho_pc_degree (unit: degree)
+    rho_pc = cal_rho_pc(pulsar)
+    rho_pc_deg = math.degrees(rho_pc)
+
+    # decide half azimuth width of flux tube: varphi_rad (unit: rad)
+    varphi_rad = math.radians(random.uniform(pop.phi_min,pop.phi_max))
+
+    C = math.atan(1./(math.cos(alpha_rad)*(math.tan(varphi_rad))))
+    if math.fabs(beta) > 2.*rho_pc_deg:
+        # inner baem width calculated by Eq. (26) from Wang et al. (2014)
+        fbwtemp1 = math.tan(alpha_rad + beta_rad) * \
+            math.sqrt(math.cos(alpha_rad) ** 2 + \
+            math.tan(varphi_rad) ** (-2))
+            
+        fbwtemp2 = math.sin(alpha_rad)/fbwtemp1
+
+        if math.fabs(fbwtemp2) <= 1:
+            fbwidth = 2. * (math.acos(fbwtemp2)- C)
+            fbwidth_deg = math.fabs(math.degrees(fbwidth))
+        else:
+            # the condition to "continue" the loop, see evolve.py!
+            fbwidth_deg = 0.
+    else:
+        # outer beam width calculated by Eq. (24) from Wang et al. (2014)
+        # Note: here we make rho_peak = 2*rho_pc and zeta = alpha
+        fbwtemp1 = math.sin(alpha_rad) ** 2
+        fbwtemp2 = (math.cos(2. * rho_pc) - math.cos(alpha_rad) ** 2) / fbwtemp1
+
+        if math.fabs(fbwtemp2) <= 1:
+            fbwidth = 2.*math.acos(fbwtemp2)
+            fbwidth_deg = math.fabs(math.degrees(fbwidth))
+        else:
+            # the condition to "continue" the loop, see evolve.py!
+            fbwidth_deg = 0.
+
+    return fbwidth_deg,beta
+
+def cal_rho_pc(pulsar):
+    # spin period of pulsar (unit: s)
+    period = pulsar.period / 1000.    
+    # the velocity of light: c (unit: m/s)
+    c = 3.e8    
+    # the typical radius of neutron star: R_ns (unit: m)
+    R_ns = 1.e4
+    # the light cylinder radius: R_cylinder
+    R_cylinder = period*c/(2.*math.pi)
+
+    rho_pc = 1.5 * ((R_ns / R_cylinder) ** 0.5)
+
+    return rho_pc
+
+def zetapi_fpdf(x):
+    return 0.5*math.sin(math.radians(x))
+
+def zetapi_mc():
+    while True:
+        xtemp = random.uniform(0, 180)
+        ytemp = random.uniform(0, 0.5)
+        if zetapi_fpdf(xtemp) >= ytemp:
+            zeta = xtemp
+            break
+        else:
+            continue
+    return zeta
+
+def conalbeam_width(psr):
+    """Calculate the opening angle of pulsar, and the beamwidth.
+        Based on model outlined in Smits et al. 2009"""
+    # cut off period for model
+    perCut = 30.0
+
+    # calclate rho
+    randfactor = random.uniform(-.15, .15)
+    if psr.period > perCut:
+        rho = _rhoLaw(psr.period)
+    else:
+        rho = _rhoLaw(perCut)
+
+    logrho = math.log10(rho) + randfactor
+    rho = 10. ** logrho
+
+    # generate beta and pulse width
+    beta = random.uniform(-1, 1) * rho
+    width = _sindegree(0.5 * rho) * _sindegree(0.5 * rho)
+    width = width - (_sindegree(0.5 * beta) * _sindegree(0.5 * beta))
+    width = width / (_sindegree(psr.alpha) * _sindegree(psr.alpha + beta))
+
+    if width < 0.0 or width > 1.0:
+        width = 0.0
+        rho = 0.0
+    else:
+        width = math.sqrt(width)
+
+        # convert the width into degrees 0 -> 360 (ie. 90*4)
+        width = math.degrees(math.asin(width))*4.0
+
+    # add beta parameter for evolve.py
+    return width, beta
+
+def _rhoLaw(p_ms):
+    """Calculate rho based on Rankin law of rho(period_ms)."""
+    return 5.4 / math.sqrt(0.001 * p_ms)
+
+
+def _sindegree(angle):
+    """Return the sine of an angle in degrees."""
+    return math.sin(math.radians(angle))
