@@ -49,7 +49,7 @@ def generate(ngen,
              pDistPars=[.3, .15],
              bFieldPars=[12.65, 0.55],
              birthVPars=[0.0, 180.],
-             siDistPars=[-1.6, 0.35],
+             siDistPars=[-1.4, 0.96],
              radialDistType='yk04',
              phiDistPars=[20., 80.],
              alignModel='orthogonal',
@@ -129,8 +129,6 @@ def generate(ngen,
     if not nostdout:
         print "\tGenerating evolved pulsars with parameters:"
         print "\t\tngen = {0}".format(ngen)
-        print "\t\tUsing electron distn model {0}".format(
-                                        pop.electronModel)
         print "\n\t\tPeriod mean, sigma = {0}, {1}".format(
                                                     pop.pmean,
                                                     pop.psigma)
@@ -481,6 +479,9 @@ def galacticDistribute(pulsar, pop):
         if pop.radialDistType == 'lfl06':
             r0 = go.lfl06()
             x, y = go.calcXY(r0)
+        elif pop.radialDistType == 'yk04':
+            r0 = go.ykr()
+            x, y = go.calcXY(r0)
         else:
             # distribute randomly in x-y plane
             x = -20. + random.random()*40.
@@ -806,12 +807,9 @@ if __name__ == '__main__':
 
     # spectral index distribution
     parser.add_argument('-si', nargs=2, type=float,
-                        # required=False, default=[-1.4, 0.96],
-                        # help='mean and std dev of spectral index distribution \
-                        #        (def = -1.4, 0.96)')
-                        required=False, default=[-1.6, 0.35],
+                        required=False, default=[-1.4, 0.96],
                         help='mean and std dev of spectral index distribution \
-                                (def = -1.6, 0.35)')
+                                (def = -1.4, 0.96)')
 
     # radial distribution type
     parser.add_argument('-rdist', type=str, nargs=1, required=False,
