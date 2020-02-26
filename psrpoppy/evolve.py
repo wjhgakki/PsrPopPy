@@ -279,6 +279,7 @@ def generate(ngen,
             cb_width, pulsar.beta = beammodels.conalbeam_width(pulsar)
             # convert degree to ms
             width = cb_width * pulsar.period / 360.
+            pulsar.beta_fabs = math.fabs(pulsar.beta)
         
         else:
             print "Undefined width model!"
@@ -323,9 +324,9 @@ def generate(ngen,
                                                  pop.lumpow)
             elif lumDistType == 'w14':
                 luminosity_w14(pulsar,
-                                kvalue=pop.lumPar1,
-                                qvalue=pop.lumPar2,
-                                Lcorrsigma=pop.lumPar3)
+                               kvalue=pop.lumPar1,
+                               qvalue=pop.lumPar2,
+                               Lcorrsigma=pop.lumPar3)
                                  
             else:
                 # something's wrong!
@@ -511,9 +512,9 @@ def alignpulsar(pulsar, pop):
         chi = math.acos(random.random())  # in radians
 
         pulsar.chi = math.degrees(chi)  # -> degrees
-        pulsar.sinchi_init = math.sin(math.radians(chi))
+        pulsar.sinchi_init = math.sin(chi)
         pulsar.sinchi = pulsar.sinchi_init
-        pulsar.coschi = math.cos(math.radians(chi))
+        pulsar.coschi = math.cos(chi)
 
     elif pop.alignModel == 'rand45':
         pulsar.coschi = random.random() * (1.0 - math.sqrt(0.5)) \
