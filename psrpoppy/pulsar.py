@@ -85,8 +85,12 @@ class Pulsar(Orbit):
         # need to add pulsar dead/alive for evolution code
         self.dead = False
         
-        # reviewed for fan beam model
+        # added for fan beam model
         self.beta = None
+        self.beta_fabs = None
+        
+        # avoid errors when writing txt file for snapshot code
+        self.bfield_init = None
 
     # methods to calculate derived properties
     def s_1400(self):
